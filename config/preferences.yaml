@@ -1,0 +1,79 @@
+# Your fit profile. This drives rule-based scoring (no LLM needed to run).
+# total_score = role_score * weights.role + location_score * weights.location
+
+roles:
+  # keyword (lowercase substring match against title + department) -> score 0..100
+  # job takes the MAX matching weight.
+  positive:
+    "finance systems": 100
+    "financial systems": 100
+    "fp&a systems": 100
+    "fpa systems": 100
+    "business applications": 95
+    "revenue analytics": 95
+    "analytics engineer": 95
+    "gtm finance": 90
+    "revenue operations": 90
+    "revops": 90
+    "quote to cash": 90
+    "billing operations": 88
+    "order to cash": 85
+    "strategic finance": 85
+    "fp&a": 80
+    "business intelligence": 80
+    "data analyst": 75
+    "business analyst": 75
+    "netsuite": 72
+    "anaplan": 72
+    "adaptive planning": 72
+    "systems analyst": 70
+    "dbt": 60
+    "bigquery": 55
+
+  # if any of these appear in title/department, role_score takes a heavy penalty
+  # (unless the title already scored a perfect 100).
+  negative:
+    - "audit"
+    - "tax compliance"
+    - "staff accountant"
+    - "accounts payable"
+    - "machine learning"
+    - "ml engineer"
+    - "backend engineer"
+    - "infrastructure engineer"
+    - "site reliability"
+    - "devops"
+    - "security engineer"
+    - "frontend engineer"
+    - "mobile engineer"
+
+# titles containing these get tagged (you may want to down-weight or hide later)
+seniority_flags:
+  - "staff"
+  - "principal"
+  - "director"
+  - "vp"
+  - "head of"
+  - "senior manager"
+
+location:
+  remote_score: 100
+  region_scores:
+    high:        # NJ / Jersey City / PA / CT / MA / upstate NY
+      score: 80
+      patterns: ["new jersey", "nj", "jersey city", "newark", "pennsylvania", "pa",
+                 "philadelphia", "connecticut", "ct", "stamford", "hartford",
+                 "massachusetts", "ma", "boston", "cambridge",
+                 "albany", "rochester", "buffalo", "syracuse"]
+    nyc:         # NYC hybrid — kept, but flagged via lower score (commute concern)
+      score: 55
+      patterns: ["new york", "nyc", "ny", "manhattan", "brooklyn"]
+    other:       # onsite far from Northeast
+      score: 20
+
+weights:
+  role: 0.65
+  location: 0.35
+
+thresholds:
+  apply_queue_min: 45   # only jobs scoring >= this land in the apply queue

@@ -1,0 +1,23 @@
+# Company watch list.
+# Each entry: name (display), ats_type (greenhouse | lever | ashby), slug (the board token).
+#
+# IMPORTANT: slugs drift and you should verify each one — see README "如何找 slug".
+# If a slug is wrong the scanner just logs "404" and skips it; your db is not harmed.
+# Start by confirming a handful work, then grow the list to your real targets.
+
+companies:
+  # ---- Greenhouse (endpoint: boards-api.greenhouse.io/v1/boards/<slug>/jobs) ----
+  - { name: Stripe,      ats_type: greenhouse, slug: stripe }
+  - { name: Databricks,  ats_type: greenhouse, slug: databricks }
+  - { name: Coinbase,    ats_type: greenhouse, slug: coinbase }
+  - { name: GitLab,      ats_type: greenhouse, slug: gitlab }
+  - { name: Figma,       ats_type: greenhouse, slug: figma }
+
+  # ---- Lever (endpoint: api.lever.co/v0/postings/<slug>?mode=json) ----
+  - { name: Plaid,       ats_type: lever, slug: plaid }
+  - { name: Brex,        ats_type: lever, slug: brex }
+
+  # ---- Ashby (endpoint: api.ashbyhq.com/posting-api/job-board/<slug>) ----
+  - { name: Ramp,        ats_type: ashby, slug: ramp }
+  - { name: Linear,      ats_type: ashby, slug: Linear }
+  - { name: Notion,      ats_type: ashby, slug: notion }

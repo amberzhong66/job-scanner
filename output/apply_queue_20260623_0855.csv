@@ -1,0 +1,30 @@
+fresh,total_score,role_score,location_score,seniority,company,title,location_raw,department,url,status
+True,96.8,95.0,100.0,,Coinbase,Senior Analytics Engineer (Platform - Financial Analytics),Remote - USA,Data Engineering,https://www.coinbase.com/careers/positions/7736521?gh_jid=7736521,open
+True,93.5,90.0,100.0,,Notion,"Sales Operations Lead, AMER","San Francisco, California",Revenue Operations & Strategy ,https://jobs.ashbyhq.com/notion/cb4f5e1a-88e4-4259-b73c-ac975dbcde5f,open
+True,93.5,90.0,100.0,,Notion,Customer Success Strategy & Operations Manager,"San Francisco, California",Revenue Operations & Strategy ,https://jobs.ashbyhq.com/notion/cfacf665-602d-43b2-9d92-7dfda3bb19a2,open
+True,93.5,90.0,100.0,head of,Notion,Head of GTM Operations,"San Francisco, California",Revenue Operations & Strategy ,https://jobs.ashbyhq.com/notion/83ef2eda-2f8b-42e9-a0ae-fa55c5628b26,open
+True,93.5,90.0,100.0,,Notion,Central GTM Strategy & Operations Manager,"New York, New York",Revenue Operations & Strategy ,https://jobs.ashbyhq.com/notion/c45ae77a-37d4-451a-bc59-1723fb15422e,open
+True,93.5,90.0,100.0,,Notion,"Finance Business Partner, GTM","San Francisco, California",Finance,https://jobs.ashbyhq.com/notion/07021c98-7b93-4748-ae7c-b83b3daa7ecd,open
+True,93.5,90.0,100.0,,Notion,Customer Experience Strategy & Operations Lead,"New York, New York",Revenue Operations & Strategy ,https://jobs.ashbyhq.com/notion/8bb5da67-0b4d-4894-83eb-56d31e9bc662,open
+True,92.2,88.0,100.0,,Coinbase,"Associate Manager, Billing Operations & Strategy",Remote - USA,Finance & Accounting,https://www.coinbase.com/careers/positions/8017672?gh_jid=8017672,open
+True,90.2,85.0,100.0,,Ramp,"Associate, Strategic Finance","New York, NY (HQ)",Finance,https://jobs.ashbyhq.com/ramp/606475af-b74f-42c4-978a-dde138a86ac7,open
+True,90.2,85.0,100.0,,Ramp,"Senior Associate, Strategic Finance","New York, NY (HQ)",Finance,https://jobs.ashbyhq.com/ramp/5cc4e600-1b28-4083-8a70-90f790112f89,open
+True,87.0,80.0,100.0,,GitLab,"Senior FP&A Analyst, Corporate Finance","Remote, Canada; Remote, US",FP&A,https://job-boards.greenhouse.io/gitlab/jobs/8521599002,open
+True,81.8,72.0,100.0,,GitLab,"G&A Engineer, Netsuite","Remote, North America",Enterprise Applications,https://job-boards.greenhouse.io/gitlab/jobs/8493970002,open
+True,74.5,85.0,55.0,,Figma,Strategic Finance,"San Francisco, CA • New York, NY • United States",Business Operations,https://boards.greenhouse.io/figma/jobs/5792631004?gh_jid=5792631004,open
+True,74.5,85.0,55.0,,Figma,"Strategic Finance, Systems & AI Innovation","San Francisco, CA • New York, NY • United States",Business Operations,https://boards.greenhouse.io/figma/jobs/5998049004?gh_jid=5998049004,open
+True,72.0,100.0,20.0,,Stripe,"Business Partner Analyst,  Financial Enablement","Dublin, Ireland",7420 Finance Systems,https://stripe.com/jobs/search?gh_jid=7874654,open
+True,72.0,100.0,20.0,,Stripe,"Software Engineer, Internal Systems","Bengaluru, India",7420 Finance Systems,https://stripe.com/jobs/search?gh_jid=7543868,open
+True,72.0,100.0,20.0,staff,Stripe,"Staff Engineer, Seller Systems",Bengaluru,7420 Finance Systems,https://stripe.com/jobs/search?gh_jid=7217778,open
+True,72.0,100.0,20.0,,Stripe,Strategy and Analytics Business Partner,Bengaluru,7420 Finance Systems,https://stripe.com/jobs/search?gh_jid=7813411,open
+True,71.2,80.0,55.0,,Coinbase,FP&A Analyst,"Hybrid - New York, NY",Internships & Emerging Talent Positions,https://www.coinbase.com/careers/positions/7997976?gh_jid=7997976,open
+True,68.8,95.0,20.0,,Coinbase,Analytics Engineer,Hybrid - Luxembourg,Data Engineering,https://www.coinbase.com/careers/positions/7843712?gh_jid=7843712,open
+True,65.5,90.0,20.0,,Notion,Partner Strategy & Operations Lead,"San Francisco, California",Revenue Operations & Strategy ,https://jobs.ashbyhq.com/notion/5dc7695e-139e-4679-a213-a733ee1d62d5,open
+True,62.2,85.0,20.0,,Stripe,Strategic Finance Partner,San Francisco,6441 Corporate F&S,https://stripe.com/jobs/search?gh_jid=7577505,open
+True,62.2,85.0,20.0,,Notion,Corporate Strategic Finance,"San Francisco, California",Finance,https://jobs.ashbyhq.com/notion/a8acb2fc-2a83-487b-9338-a45f416802b0,open
+True,59.0,80.0,20.0,director,Databricks,"Director, Corporate FP&A","San Francisco, California",Finance,https://databricks.com/company/careers/open-positions/job?gh_jid=8026734002,open
+True,59.0,80.0,20.0,director,Databricks,"Director, Finance Transformation, FP&A","Bellevue, Washington; Denver, Colorado; Mountain View, California; San Francisco, California; Seattle, Washington",Finance,https://databricks.com/company/careers/open-positions/job?gh_jid=8415095002,open
+True,55.8,75.0,20.0,,Stripe,Data Analyst,Canada,7112 Data Science,https://stripe.com/jobs/search?gh_jid=5416444,open
+True,55.8,75.0,20.0,,Stripe,Data Analyst,Mexico City,4138 SDC - Tech Ops,https://stripe.com/jobs/search?gh_jid=7978488,open
+True,55.8,75.0,20.0,staff,Stripe,Staff Data Analyst,US,7112 Data Science,https://stripe.com/jobs/search?gh_jid=7801457,open
+True,55.8,75.0,20.0,staff,Stripe,Staff Data Analyst,US,7112 Data Science,https://stripe.com/jobs/search?gh_jid=7921649,open
