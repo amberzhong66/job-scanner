@@ -97,10 +97,38 @@ sqlite3 jobs.db "SELECT ts,company,event,title FROM events ORDER BY id DESC LIMI
 
 ---
 
-## 7. 下一步:接上 LLM 分类(可选)
+## 7. AI 精判层(DeepSeek,可选)
 
-现在规则已经能砍掉大部分噪音。LLM 该放在**规则之后**,只处理边界模糊的岗位
-(比如 "Strategic Finance" vs "Finance Systems" vs "RevOps" 这种你清单里高度重叠的方向),
-输出一个 fit 理由和细分标签。这样既省 token 又稳定。
+规则负责砍量,AI 负责读 JD 正文、判断那些标题骗人的岗位(标题没关键词但其实是好岗位 / 标题命中关键词但其实不对路)。**没 key 就还是纯规则跑,加了 key 自动启用。**
 
-这一层我建议下一轮再加——你先把抓取和增量监控跑顺,确认数据质量,再谈分类要不要更聪明。
+### 7.1 拿一个 DeepSeek key
+1. 去 platform.deepseek.com 注册(无需信用卡),充一点点钱(几块钱能用很久)。
+2. 在 API Keys 页面生成一个 key,形如 `sk-xxxxxxxx`。
+
+### 7.2 把 key 放进 .env(不会进 Git)
+在 `job-scanner` 文件夹里建一个 `.env` 文件:
+```bash
+echo 'DEEPSEEK_API_KEY=sk-把你的key贴这里' > .env
+```
+`.gitignore` 已经挡掉 `.env`,所以它永远不会被 `git push` 上去。
+
+### 7.3 装库 + 跑
+```bash
+pip install openai        # 已在 requirements.txt 里
+python scan.py --reset    # 第一次会把规则筛过的岗位逐个让 AI 判一遍
+```
+之后正常 `python scan.py`,**AI 只判新增/更新的岗位**,判过的按 content_hash 缓存,不重复花钱。运行结尾会显示 `AI: N new verdicts, M reused from cache`。
+
+### 7.4 队列怎么变
+有 AI 之后,`Fit` 列会显示 **STRONG / MAYBE / NO**,还带一句 AI 给的理由:
+- AI 判 `no` 的岗位**直接从队列剔除**,哪怕规则分很高(这就是用来杀假阳性的)。
+- `strong` 排最前,然后 `maybe`,再按规则分排序。
+- AI 没看过的岗位,回退到规则门槛,不会凭空消失。
+
+### 7.5 成本与开关
+- 模型默认 `deepseek-v4-flash`(便宜,分类够用),在 `preferences.yaml` 的 `ai.model` 改。
+- `python scan.py --no-ai` 强制纯规则;`--max-ai 50` 限制本次最多调用 50 次(防第一次扫太多家时意外花钱);`--refresh-ai` 忽略缓存重判。
+- 想让更多边缘岗位进 AS(标题怪但可能是好岗位),把 `preferences.yaml` 里 `ai.prefilter_min` 调低甚至设 0;想省钱就调高。
+
+### 7.6 个人画像
+AI 判断依据来自 `config/profile.md` —— 我已按你的背景填好(finance+IT liaison、tax automation、在补 SQL/dbt/BigQuery、不要纯 accounting/audit 也不要纯 SWE)。想让 AI 判得更准,就用大白话改这个文件。

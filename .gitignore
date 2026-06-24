@@ -1,0 +1,17 @@
+# local data & outputs (regenerated every run — no need to track)
+jobs.db
+output/*.csv
+output/*.json
+
+# python virtual env
+.venv/
+__pycache__/
+*.pyc
+
+# secrets — NEVER commit your API key
+.env
+*.key
+config/secrets.yaml
+
+# os junk
+.DS_Store

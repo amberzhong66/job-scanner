@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS scans(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, companies INTEGER,
   fetched INTEGER, new_cnt INTEGER, updated_cnt INTEGER, closed_cnt INTEGER
 );
+CREATE TABLE IF NOT EXISTS ai_cache(
+  content_hash TEXT PRIMARY KEY, fit TEXT, reason TEXT, tags TEXT, model TEXT, ts TEXT
+);
 """
 
 
@@ -36,6 +39,12 @@ def connect(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # migrate older databases: add AI columns if missing
+    for col in ("ai_fit TEXT", "ai_reason TEXT", "ai_tags TEXT"):
+        try:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
+        except sqlite3.OperationalError:
+            pass
     return conn
 
 
@@ -44,28 +53,43 @@ def connect(db_path: str) -> sqlite3.Connection:
 def score_job(job: Job, prefs: dict):
     title = (job.title or "").lower()
     dept = (job.department or "").lower()
-    text = f"{title} {dept}"
 
-    role = 0
-    for kw, w in prefs["roles"]["positive"].items():
-        if kw.strip().lower() in text:
-            role = max(role, int(w))
-    negative_hit = any(n.lower() in text for n in prefs["roles"]["negative"])
+    def best(text):
+        s = 0
+        for kw, w in prefs["roles"]["positive"].items():
+            if kw.strip().lower() in text:
+                s = max(s, int(w))
+        return s
+
+    # A title match counts fully; a department-only match is capped, so an
+    # entire "Revenue Operations" / "Financial Systems" department can't drag
+    # every sub-role (sales ops, SWE, etc.) to the top of the queue.
+    dept_cap = int(prefs["roles"].get("department_match_cap", 60))
+    role = max(best(title), min(best(dept), dept_cap))
+
+    negative_hit = any(n.lower() in f"{title} {dept}" for n in prefs["roles"]["negative"])
     if negative_hit and role < 100:
         role = max(0, role - 80)  # heavy penalty unless it's a perfect-match title
 
+    # Location is decided by the TEXT first. The ATS "remote" flag is unreliable
+    # (Ashby marks office roles isRemote=true to mean "remote-eligible"), so it
+    # only yields a separate remote_eligible_score and never fakes a full 100.
     loc = (job.location_raw or "").lower()
     region = prefs["location"]["region_scores"]
-    loc_score = region["other"]["score"]
-    if job.is_remote or "remote" in loc:
+
+    def hit(patterns):
+        return any(re.search(r"\b" + re.escape(p.lower()) + r"\b", loc) for p in patterns)
+
+    if hit(region["high"]["patterns"]):
+        loc_score = region["high"]["score"]
+    elif hit(region["nyc"]["patterns"]):
+        loc_score = region["nyc"]["score"]
+    elif "remote" in loc:
         loc_score = prefs["location"]["remote_score"]
+    elif job.is_remote:
+        loc_score = int(prefs["location"].get("remote_eligible_score", 70))
     else:
-        def hit(patterns):
-            return any(re.search(r"\b" + re.escape(p.lower()) + r"\b", loc) for p in patterns)
-        if hit(region["high"]["patterns"]):
-            loc_score = region["high"]["score"]
-        elif hit(region["nyc"]["patterns"]):
-            loc_score = region["nyc"]["score"]
+        loc_score = region["other"]["score"]
 
     seniority = ",".join(s for s in prefs["seniority_flags"] if s.lower() in title)
 
@@ -129,13 +153,18 @@ class ScanResult:
         self.new, self.updated, self.closed = [], [], []
         self.fetch_failures = []   # (company, error)
         self.queue = []            # list of sqlite Row
+        self.ai_calls = 0          # how many times we actually hit the API
+        self.ai_cached = 0         # how many verdicts were reused from cache
+        self.ai_enabled = False
 
 
-def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=True):
+def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=True,
+        classifier=None, max_ai=200, refresh_ai=False):
     adapter_registry = adapter_registry or ADAPTERS
     conn = connect(db_path)
     now = iso_now()
     res = ScanResult()
+    res.ai_enabled = classifier is not None
 
     prev = load_open_jobs(conn)
     prev_counts = {}
@@ -162,9 +191,11 @@ def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=T
 
     res.fetched = len(current)
 
+    scored = {}  # key -> (role, loc, total, seniority)
     for key, j in current.items():
         ch = j.content_hash()
         r, l, t, sen = score_job(j, prefs)
+        scored[key] = (r, l, t, sen)
         if key not in prev:
             upsert_new(conn, j, ch, now, r, l, t, sen)
             res.new.append(key)
@@ -191,20 +222,76 @@ def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=T
             res.closed.append(key)
             log_event(conn, now, comp, key, "closed", row["title"])
 
+    conn.commit()
+
+    # ---- AI precision layer (only if a classifier is supplied) ----
+    if classifier is not None:
+        prefilter = int(prefs.get("ai", {}).get("prefilter_min", 1))
+        # only spend AI on jobs that survived the rules (role>0); best first
+        candidates = sorted(
+            [k for k in current if scored[k][0] >= prefilter],
+            key=lambda k: scored[k][2], reverse=True,
+        )
+        done = 0
+        for key in candidates:
+            if done >= max_ai:
+                break
+            j = current[key]
+            ch = j.content_hash()
+            cached = None
+            if not refresh_ai:
+                row = conn.execute("SELECT * FROM ai_cache WHERE content_hash=?", (ch,)).fetchone()
+                cached = row
+            if cached is not None:
+                fit, reason, tags = cached["fit"], cached["reason"], cached["tags"]
+                res.ai_cached += 1
+            else:
+                try:
+                    v = classifier.classify(j.title, j.department, j.location_raw, j.description)
+                except Exception:
+                    continue  # one failed call shouldn't abort the whole run
+                fit, reason, tags = v["fit"], v["reason"], v["tags"]
+                if isinstance(tags, (list, tuple)):
+                    tags = ",".join(str(x) for x in tags)
+                reason = str(reason)
+                conn.execute(
+                    "INSERT OR REPLACE INTO ai_cache(content_hash,fit,reason,tags,model,ts) VALUES(?,?,?,?,?,?)",
+                    (ch, fit, reason, tags, getattr(classifier, "model", "?"), now),
+                )
+                res.ai_calls += 1
+                done += 1
+            conn.execute(
+                "UPDATE jobs SET ai_fit=?,ai_reason=?,ai_tags=? WHERE key=?",
+                (fit, reason, tags, key),
+            )
+        conn.commit()
+
     conn.execute(
         "INSERT INTO scans(ts,companies,fetched,new_cnt,updated_cnt,closed_cnt) VALUES(?,?,?,?,?,?)",
         (now, len(companies), res.fetched, len(res.new), len(res.updated), len(res.closed)),
     )
     conn.commit()
 
+    # ---- build apply queue ----
+    # Once AI has run, its verdict leads: "no" is dropped even with a high keyword
+    # score, "strong"/"maybe" float up. Jobs AI hasn't seen fall back to the rule
+    # threshold so nothing silently disappears.
     fresh = set(res.new) | set(res.updated)
     thr = prefs["thresholds"]["apply_queue_min"]
-    rows = conn.execute(
-        "SELECT * FROM jobs WHERE status='open' AND total_score>=? ORDER BY total_score DESC",
-        (thr,),
-    ).fetchall()
-    rows.sort(key=lambda r: (r["key"] in fresh, r["total_score"]), reverse=True)
-    res.queue = rows
+    rank = {"strong": 3, "maybe": 2, None: 1, "": 1, "no": 0}
+    rows = conn.execute("SELECT * FROM jobs WHERE status='open'").fetchall()
+    keep = []
+    for r in rows:
+        fit = r["ai_fit"] if "ai_fit" in r.keys() else None
+        if fit == "no":
+            continue
+        if fit in ("strong", "maybe"):
+            keep.append(r)
+        elif (fit in (None, "")) and r["total_score"] >= thr:
+            keep.append(r)
+    keep.sort(key=lambda r: (rank.get(r["ai_fit"] if "ai_fit" in r.keys() else None, 1),
+                             r["key"] in fresh, r["total_score"]), reverse=True)
+    res.queue = keep
     res._fresh = fresh
     conn.close()
     return res
@@ -215,8 +302,8 @@ def export_queue(res, prefs, out_dir):
     import os
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     os.makedirs(out_dir, exist_ok=True)
-    cols = ["total_score", "role_score", "location_score", "seniority", "company",
-            "title", "location_raw", "department", "url", "status"]
+    cols = ["ai_fit", "ai_reason", "ai_tags", "total_score", "role_score", "location_score",
+            "seniority", "company", "title", "location_raw", "department", "url", "status"]
     csv_path = os.path.join(out_dir, f"apply_queue_{ts}.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)

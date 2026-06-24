@@ -39,6 +39,8 @@ roles:
     - "accounts payable"
     - "machine learning"
     - "ml engineer"
+    - "software engineer"     # plain SWE — "analytics engineer" is NOT affected
+    - "staff engineer"
     - "backend engineer"
     - "infrastructure engineer"
     - "site reliability"
@@ -46,6 +48,10 @@ roles:
     - "security engineer"
     - "frontend engineer"
     - "mobile engineer"
+
+  # a department-only keyword match is capped at this score, so a whole
+  # department name can surface a role but never make it top the queue.
+  department_match_cap: 60
 
 # titles containing these get tagged (you may want to down-weight or hide later)
 seniority_flags:
@@ -57,7 +63,8 @@ seniority_flags:
   - "senior manager"
 
 location:
-  remote_score: 100
+  remote_score: 100          # location text actually says "remote"
+  remote_eligible_score: 70  # ATS flags it remote-eligible but lists an office city
   region_scores:
     high:        # NJ / Jersey City / PA / CT / MA / upstate NY
       score: 80
@@ -76,4 +83,12 @@ weights:
   location: 0.35
 
 thresholds:
-  apply_queue_min: 45   # only jobs scoring >= this land in the apply queue
+  apply_queue_min: 45   # only jobs scoring >= this land in the apply queue (rule-only mode)
+
+ai:
+  # When an API key is present, rules become a PRE-FILTER, not the final gate.
+  # Only jobs whose rule role_score >= prefilter_min get sent to the AI (saves money;
+  # obvious junk never reaches the model). Lower this to let more borderline titles
+  # through to the AI; raise it to spend less.
+  prefilter_min: 1
+  model: deepseek-v4-flash
