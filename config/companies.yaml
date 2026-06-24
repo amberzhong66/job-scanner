@@ -21,3 +21,30 @@ companies:
   - { name: Ramp,        ats_type: ashby, slug: ramp }
   - { name: Linear,      ats_type: ashby, slug: Linear }
   - { name: Notion,      ats_type: ashby, slug: notion }
+
+# ---- Greenhouse ----
+  - { name: Airtable,     ats_type: greenhouse, slug: airtable }
+  - { name: Dropbox,      ats_type: greenhouse, slug: dropbox }
+  - { name: Robinhood,    ats_type: greenhouse, slug: robinhood }
+  - { name: Affirm,       ats_type: greenhouse, slug: affirm }
+  - { name: DoorDash,     ats_type: greenhouse, slug: doordash }
+  - { name: Instacart,    ats_type: greenhouse, slug: instacart }
+  - { name: Asana,        ats_type: greenhouse, slug: asana }
+  - { name: Samsara,      ats_type: greenhouse, slug: samsara }
+  - { name: Cloudflare,   ats_type: greenhouse, slug: cloudflare }
+  - { name: Gusto,        ats_type: greenhouse, slug: gusto }
+  - { name: Benchling,    ats_type: greenhouse, slug: benchling }
+  - { name: Airbnb,       ats_type: greenhouse, slug: airbnb }
+
+  # ---- Lever ----
+  - { name: Attentive,    ats_type: lever, slug: attentive }
+  - { name: Spotify,      ats_type: lever, slug: spotify }
+  - { name: KeepTruckin,  ats_type: lever, slug: motive }
+
+  # ---- Ashby ----
+  - { name: Vanta,        ats_type: ashby, slug: vanta }
+  - { name: Mercury,      ats_type: ashby, slug: mercury }
+  - { name: Deel,         ats_type: ashby, slug: deel }
+  - { name: Census,       ats_type: ashby, slug: census }
+  - { name: Hex,          ats_type: ashby, slug: hex }
+  - { name: Watershed,    ats_type: ashby, slug: watershed }
