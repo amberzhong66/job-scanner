@@ -1,34 +1,73 @@
 # Your fit profile. This drives rule-based scoring (no LLM needed to run).
 # total_score = role_score * weights.role + location_score * weights.location
+# (set to 0 if the role is hard-rejected: purely non-US, or too senior)
 
 roles:
   # keyword (lowercase substring match against title + department) -> score 0..100
   # job takes the MAX matching weight.
   positive:
+    # --- Tier 1: Dream roles (business-heavy AE / finance-facing analytics) ---
     "finance systems": 100
     "financial systems": 100
     "fp&a systems": 100
     "fpa systems": 100
-    "business applications": 95
     "revenue analytics": 95
+    "revenue analyst": 95
     "analytics engineer": 95
+    "business applications": 95
+    "finance analytics": 92
+    "finance data analyst": 92
     "gtm finance": 90
+    "gtm analytics": 90
+    "gtm operations": 88
     "revenue operations": 90
     "revops": 90
     "quote to cash": 90
+    "saas finance": 90
+    "saas analytics": 88
+    "subscription analytics": 88
+    "revenue finance": 88
     "billing operations": 88
-    "order to cash": 85
+    "billing analyst": 88
+    "billing analytics": 88
+
+    # --- Tier 2: Strong fit, slightly broader ---
     "strategic finance": 85
+    "strategy operations analyst": 85
+    "strategy & operations": 85
+    "growth finance": 85
+    "growth analyst": 82
+    "commercial finance": 85
+    "commercial analyst": 82
+    "order to cash": 85
+    "deal operations": 82
+    "deal desk analyst": 80
+    "decision scientist": 80
+    "monetization analyst": 82
+    "pricing analyst": 82
+    "sales finance": 82
+    "finops": 80
+
+    # --- Tier 3: Could be good depending on JD ---
     "fp&a": 80
     "business intelligence": 80
+    "financial analyst data": 80
+    "product analyst": 72
     "data analyst": 75
     "business analyst": 75
+    "operations analyst": 75
     "netsuite": 72
     "anaplan": 72
     "adaptive planning": 72
+    "pigment": 68
+    "planful": 68
     "systems analyst": 70
+
+    # --- Tier 4: Tool-signal (weak match alone, boosts combined) ---
     "dbt": 60
     "bigquery": 55
+    "looker": 55
+    "tableau": 50
 
   # if any of these appear in title/department, role_score takes a heavy penalty
   # (unless the title already scored a perfect 100).
@@ -37,9 +76,16 @@ roles:
     - "tax compliance"
     - "staff accountant"
     - "accounts payable"
+    - "accounts receivable specialist"
+    - "accounting manager"
+    - "controller"
+    - "payroll"
+    - "bookkeeper"
+    - "collections specialist"
+    - "procurement"
     - "machine learning"
     - "ml engineer"
-    - "software engineer"     # plain SWE — "analytics engineer" is NOT affected
+    - "software engineer"
     - "staff engineer"
     - "backend engineer"
     - "infrastructure engineer"
@@ -53,7 +99,8 @@ roles:
   # department name can surface a role but never make it top the queue.
   department_match_cap: 60
 
-# titles containing these get tagged (you may want to down-weight or hide later)
+# titles containing these get TAGGED for display (not rejected — staff/senior
+# analytics engineer can be exactly the target).
 seniority_flags:
   - "staff"
   - "principal"
@@ -62,20 +109,70 @@ seniority_flags:
   - "head of"
   - "senior manager"
 
+# HARD REJECT if title contains any of these (total -> 0, dropped from queue).
+# Note: only the genuinely-too-senior terms. "staff"/"senior" are NOT here.
+seniority_hard_reject: true
+seniority_reject:
+  - "director"
+  - "vp"
+  - "head of"
+  - "chief"
+  - "svp"
+
 location:
-  remote_score: 100          # location text actually says "remote"
-  remote_eligible_score: 70  # ATS flags it remote-eligible but lists an office city
+  remote_score: 100
+  remote_eligible_score: 70
+
+  # HARD REJECT a role only if it is PURELY non-US. If the location also mentions
+  # the US (e.g. "Remote US; Canada"), it is kept. Toggle off with false.
+  non_us_hard_reject: true
+  us_signal_patterns: ["united states", "usa", "u.s.", "us", "remote us", "remote - us"]
+  non_us_reject:
+    - "canada"
+    - "toronto"
+    - "ontario"
+    - "vancouver"
+    - "poland"
+    - "warsaw"
+    - "india"
+    - "bengaluru"
+    - "bangalore"
+    - "hyderabad"
+    - "ireland"
+    - "dublin"
+    - "united kingdom"
+    - "uk"
+    - "london"
+    - "germany"
+    - "berlin"
+    - "france"
+    - "paris"
+    - "spain"
+    - "portugal"
+    - "lisbon"
+    - "netherlands"
+    - "amsterdam"
+    - "australia"
+    - "singapore"
+    - "japan"
+    - "tokyo"
+    - "brazil"
+    - "mexico"
+    - "emea"
+    - "apac"
+    - "latam"
+
   region_scores:
-    high:        # NJ / Jersey City / PA / CT / MA / upstate NY
+    high:
       score: 80
       patterns: ["new jersey", "nj", "jersey city", "newark", "pennsylvania", "pa",
                  "philadelphia", "connecticut", "ct", "stamford", "hartford",
                  "massachusetts", "ma", "boston", "cambridge",
                  "albany", "rochester", "buffalo", "syracuse"]
-    nyc:         # NYC hybrid — kept, but flagged via lower score (commute concern)
+    nyc:
       score: 55
       patterns: ["new york", "nyc", "ny", "manhattan", "brooklyn"]
-    other:       # onsite far from Northeast
+    other:
       score: 20
 
 weights:
@@ -83,12 +180,8 @@ weights:
   location: 0.35
 
 thresholds:
-  apply_queue_min: 45   # only jobs scoring >= this land in the apply queue (rule-only mode)
+  apply_queue_min: 45
 
 ai:
-  # When an API key is present, rules become a PRE-FILTER, not the final gate.
-  # Only jobs whose rule role_score >= prefilter_min get sent to the AI (saves money;
-  # obvious junk never reaches the model). Lower this to let more borderline titles
-  # through to the AI; raise it to spend less.
-  prefilter_min: 1
+  prefilter_min: 1     # back to 1; control cost with --max-ai instead of cutting by rule score
   model: deepseek-v4-flash

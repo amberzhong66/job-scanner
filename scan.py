@@ -23,7 +23,7 @@ import yaml
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from job_scanner.core import run, export_queue  # noqa: E402
+from job_scanner.core import run, export_queue, export_jds  # noqa: E402
 
 DB_PATH = os.path.join(HERE, "jobs.db")
 OUT_DIR = os.path.join(HERE, "output")
@@ -129,6 +129,8 @@ def main():
     ap.add_argument("--no-ai", action="store_true", help="force rule-only")
     ap.add_argument("--refresh-ai", action="store_true", help="ignore AI cache")
     ap.add_argument("--max-ai", type=int, default=200, help="cap API calls this run")
+    ap.add_argument("--export-jd", action="store_true", help="export full JDs (jsonl + md)")
+    ap.add_argument("--jd-min", type=int, default=1, help="min total_score for JD export")
     args = ap.parse_args()
 
     load_dotenv()
@@ -148,7 +150,8 @@ def main():
               mark_closed=not args.no_close, classifier=clf,
               max_ai=args.max_ai, refresh_ai=args.refresh_ai)
 
-    p(f"\n[bold]Scan summary[/bold]: fetched [cyan]{res.fetched}[/cyan]  |  "
+    p(f"\n[bold]Scan summary[/bold]: fetched [cyan]{res.fetched}[/cyan] unique  "
+      f"([dim]merged {res.deduped} duplicates[/dim])  |  "
       f"[green]NEW {len(res.new)}[/green]  [yellow]UPDATED {len(res.updated)}[/yellow]  "
       f"[red]CLOSED {len(res.closed)}[/red]")
     if res.ai_enabled:
@@ -164,6 +167,10 @@ def main():
     show_queue(res, args.top)
     csv_path, json_path = export_queue(res, prefs, OUT_DIR)
     p(f"\n[dim]Saved:[/dim] {os.path.relpath(csv_path, HERE)}  |  {os.path.relpath(json_path, HERE)}")
+
+    if args.export_jd:
+        jl, md, n = export_jds(DB_PATH, OUT_DIR, min_score=args.jd_min)
+        p(f"[dim]JD export ({n} roles):[/dim] {os.path.relpath(jl, HERE)}  |  {os.path.relpath(md, HERE)}")
 
 
 if __name__ == "__main__":

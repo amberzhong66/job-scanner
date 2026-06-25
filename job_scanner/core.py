@@ -93,8 +93,30 @@ def score_job(job: Job, prefs: dict):
 
     seniority = ",".join(s for s in prefs["seniority_flags"] if s.lower() in title)
 
+    # ---- hard rejects (total -> 0, i.e. dropped from the queue entirely) ----
+    locp = prefs.get("location", {})
+
+    def wb(patterns):  # word-boundary match anywhere in the location text
+        return any(re.search(r"\b" + re.escape(p.lower()) + r"\b", loc) for p in patterns)
+
+    # A location counts as "has US" if it names the US or any US region we track.
+    us_signal = (wb(locp.get("us_signal_patterns", ["united states", "usa", "u.s.", "us"]))
+                 or hit(region["high"]["patterns"]) or hit(region["nyc"]["patterns"]))
+    non_us = wb(locp.get("non_us_reject", []))
+    # Reject only PURELY non-US roles; "Remote US; Canada" keeps the US side.
+    reject_location = (locp.get("non_us_hard_reject", True) and non_us and not us_signal)
+
+    # Reject roles that are too senior (director/VP/head-of) — but NOT "staff"/
+    # "senior" engineer titles, which can be exactly the target.
+    sr_terms = prefs.get("seniority_reject", [])
+    reject_senior = (prefs.get("seniority_hard_reject", True)
+                     and any(re.search(r"\b" + re.escape(s.lower()) + r"\b", title) for s in sr_terms))
+
     w = prefs["weights"]
-    total = round(role * w["role"] + loc_score * w["location"], 1)
+    if reject_location or reject_senior:
+        total = 0.0
+    else:
+        total = round(role * w["role"] + loc_score * w["location"], 1)
     return role, loc_score, total, seniority
 
 
@@ -156,6 +178,45 @@ class ScanResult:
         self.ai_calls = 0          # how many times we actually hit the API
         self.ai_cached = 0         # how many verdicts were reused from cache
         self.ai_enabled = False
+        self.deduped = 0           # how many duplicate postings were merged away
+
+
+def _norm_title(t: str) -> str:
+    t = (t or "").lower()
+    t = re.sub(r"\(.*?\)", " ", t)           # drop "(Remote)", "(Revenue)" etc.
+    t = re.sub(r"\b(i{1,3}|iv|v)\b", " ", t)  # drop level roman numerals
+    t = re.sub(r"[^a-z0-9 &/-]", " ", t)      # keep '-' and '/' so "- Public Sector" survives
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def dedupe(current: dict):
+    """Collapse multiple postings of the same role (same company + normalized
+    title, e.g. one job listed across 23 cities) into ONE canonical Job.
+    Keeps the longest description, unions the locations, OR-s is_remote.
+    Canonical key = smallest key in the group, so the survivor is stable across runs."""
+    groups = {}
+    for key, j in current.items():
+        gk = (j.company.strip().lower(), _norm_title(j.title))
+        groups.setdefault(gk, []).append((key, j))
+
+    out, merged = {}, 0
+    for items in groups.values():
+        if len(items) == 1:
+            k, j = items[0]
+            out[k] = j
+            continue
+        items.sort(key=lambda kv: kv[0])  # stable canonical
+        ckey, cj = items[0]
+        cj.description = max((j.description or "" for _, j in items), key=len)
+        locs = []
+        for _, j in items:
+            if j.location_raw and j.location_raw not in locs:
+                locs.append(j.location_raw)
+            cj.is_remote = cj.is_remote or j.is_remote
+        cj.location_raw = " | ".join(locs)[:300]
+        out[ckey] = cj
+        merged += len(items) - 1
+    return out, merged
 
 
 def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=True,
@@ -189,6 +250,9 @@ def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=T
             j.fetched_at = now
             current[j.key] = j
 
+    # per_company counts above are RAW (pre-dedupe) on purpose: the circuit
+    # breaker should judge "did the fetch work", not the post-dedupe size.
+    current, res.deduped = dedupe(current)
     res.fetched = len(current)
 
     scored = {}  # key -> (role, loc, total, seniority)
@@ -227,9 +291,9 @@ def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=T
     # ---- AI precision layer (only if a classifier is supplied) ----
     if classifier is not None:
         prefilter = int(prefs.get("ai", {}).get("prefilter_min", 1))
-        # only spend AI on jobs that survived the rules (role>0); best first
+        # only spend AI on jobs that survived the rules (role>0 AND not hard-rejected); best first
         candidates = sorted(
-            [k for k in current if scored[k][0] >= prefilter],
+            [k for k in current if scored[k][0] >= prefilter and scored[k][2] > 0],
             key=lambda k: scored[k][2], reverse=True,
         )
         done = 0
@@ -282,6 +346,8 @@ def run(companies, prefs, db_path, session, adapter_registry=None, mark_closed=T
     rows = conn.execute("SELECT * FROM jobs WHERE status='open'").fetchall()
     keep = []
     for r in rows:
+        if r["total_score"] == 0:
+            continue  # hard-rejected (non-US / too senior) — never surface
         fit = r["ai_fit"] if "ai_fit" in r.keys() else None
         if fit == "no":
             continue
@@ -315,3 +381,35 @@ def export_queue(res, prefs, out_dir):
         json.dump([{**{c: r[c] for c in cols}, "fresh": r["key"] in res._fresh}
                    for r in res.queue], f, ensure_ascii=False, indent=2)
     return csv_path, json_path
+
+
+def export_jds(db_path, out_dir, min_score=1):
+    """Export full job descriptions for relevant open jobs.
+    Writes one JSONL (machine-usable, for skill analysis / cover letters) and one
+    readable .md. Only open jobs with total_score >= min_score (default: anything
+    not hard-rejected). Returns (jsonl_path, md_path, count)."""
+    import os
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    os.makedirs(out_dir, exist_ok=True)
+    conn = connect(db_path)
+    rows = conn.execute(
+        "SELECT company,title,location_raw,total_score,role_score,ai_fit,url,department,description "
+        "FROM jobs WHERE status='open' AND total_score>=? ORDER BY total_score DESC",
+        (min_score,),
+    ).fetchall()
+    conn.close()
+
+    jsonl_path = os.path.join(out_dir, f"jds_{ts}.jsonl")
+    with open(jsonl_path, "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps({k: r[k] for k in r.keys()}, ensure_ascii=False) + "\n")
+
+    md_path = os.path.join(out_dir, f"jds_{ts}.md")
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(f"# Job descriptions ({len(rows)} roles, score >= {min_score})\n\n")
+        for r in rows:
+            f.write(f"## {r['title']} — {r['company']}\n")
+            f.write(f"- score {r['total_score']} | {r['location_raw']} | {r['url']}\n\n")
+            f.write((r["description"] or "(no description captured)").strip() + "\n\n---\n\n")
+    return jsonl_path, md_path, len(rows)
+
